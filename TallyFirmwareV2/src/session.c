@@ -52,7 +52,7 @@ bool session_abort(session_t *s, uint32_t set_id)
 resume_result_t session_resume(session_t *s, uint32_t set_id, uint32_t next_seq)
 {
     if (s->state == SESSION_IDLE || set_id != s->set_id || next_seq > s->taken) return RESUME_INVALID;
-    s->started_pending = false; // the phone that resumes already has SET_STARTED
+    // A still-pending SET_STARTED never reached any phone, so it stays pending and goes out first.
     if (s->taken - next_seq > WIRE_RING_CAP) {
         // next_seq already left the ring. End at the phone's position: no gap, no skipped samples.
         s->taken = next_seq;
@@ -69,7 +69,8 @@ void session_tick(session_t *s, int64_t now_us, const uint16_t mv[WIRE_CHANNELS]
     if (s->state != SESSION_RUNNING) return;
     if (s->taken == 0) {
         s->start_us = now_us;
-    } else if (now_us - s->last_us > SESSION_MAX_TICK_GAP_US) {
+    } else if (now_us - s->last_us > SESSION_MAX_TICK_GAP_US || now_us - s->last_us < 1000) {
+        // Under 1 ms after a late wake, t_us / 1000 could repeat, which the phone rejects outright.
         end_set(s, END_TIMING);
         return;
     }

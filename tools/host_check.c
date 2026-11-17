@@ -113,6 +113,15 @@ static void check_sessions(void)
     s.started_pending = false; // link_server sends the pending SET_STARTED first
     expect_end(END_ABORTED, 0); // ring cleared: nothing was sent, so the count is 0
 
+    // A wake under 1 ms after the previous one would repeat t_us / 1000: timing, not stored.
+    assert(session_start(&s, SET_ID, 'L'));
+    ticks(2);
+    now_us -= 9001; // lands 999 us after the previous tick
+    ticks(1);
+    assert(s.state == SESSION_ENDING && s.end_reason == END_TIMING && s.taken == 2);
+    assert(drain(0) == 2);
+    expect_end(END_TIMING, 2);
+
     // Disconnected for longer than the ring: stop sampling at 3,000 unsent, never overwrite.
     assert(session_start(&s, SET_ID, 'R'));
     ticks(100);
@@ -164,6 +173,7 @@ static void check_sessions(void)
     uint32_t first;
     wire_sample_t batch[10];
     assert(session_peek(&s, &first, batch) == 0);
+    assert(session_resume(&s, SET_ID, 0) == RESUME_OK && s.started_pending); // resent after RESUME
     assert(session_abort(&s, SET_ID));
     uint32_t id, count;
     uint8_t reason;
