@@ -1,37 +1,17 @@
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_log.h"
+#include <stdint.h>
+
 #include "accelerometer.h"
-#include "udp_sender.h"
+#include "link_server.h"
+#include "sampler.h"
 #include "wifi_ap.h"
 
-
-#define IP_ADDRESS "192.168.4.2"
-#define PORT 5198
-
+// One job per module: accelerometer reads millivolts, sampler owns the 100 Hz tick and the set,
+// wifi_ap brings up the WPA2 SoftAP, link_server speaks ESP32-WIRE-V1 over TCP.
 void app_main(void)
 {
+    uint8_t mac[6];
     accelerometer_init();
-    wifi_ap_start();
-    udp_sender_init(IP_ADDRESS, PORT);
-
-    int log_counter = 0;
-    while (1) {
-        accelerometer_readings_t readings;
-        accelerometer_read(&readings);
-        udp_sender_send(&readings);
-
-        if (++log_counter >= 100) {
-            ESP_LOGI("ACCEL", "VP=%.2f g VN=%.2f g D34=%.2f g D35=%.2f g D32=%.2f g D33=%.2f g",
-                     accelerometer_conversion(readings.vp),
-                     accelerometer_conversion(readings.vn),
-                     accelerometer_conversion(readings.d34),
-                     accelerometer_conversion(readings.d35),
-                     accelerometer_conversion(readings.d32),
-                     accelerometer_conversion(readings.d33));
-            log_counter = 0;
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
+    wifi_ap_start(mac);
+    sampler_start();
+    link_server_start(mac);
 }

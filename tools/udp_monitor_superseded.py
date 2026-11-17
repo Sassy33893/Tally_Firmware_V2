@@ -1,3 +1,4 @@
+# Superseded UDP text spike (pre ESP32-WIRE-V1); the board now speaks TCP binary frames, see frame_encoder.py.
 import queue
 import socket
 import threading

@@ -6,10 +6,6 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
-#define ADXL335_SUPPLY_VOLTAGE_V 3.3f
-#define ADXL335_ZERO_G_VOLTAGE_V (ADXL335_SUPPLY_VOLTAGE_V / 2.0f)
-#define ADXL335_SENSITIVITY_V_PER_G (0.300f * ADXL335_SUPPLY_VOLTAGE_V / 3.0f)
-
 static const char *TAG = "ADC";
 static adc_oneshot_unit_handle_t adc1_handle;
 static adc_cali_handle_t adc1_cali_handle;
@@ -34,7 +30,7 @@ void accelerometer_init(void)
 
     const adc_cali_line_fitting_config_t calibration_config = {
         .unit_id = ADC_UNIT_1,
-        .atten = ADC_ATTEN_DB_12,
+        .atten = ACCELEROMETER_ATTEN,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
         .default_vref = 1100,
     };
@@ -42,7 +38,7 @@ void accelerometer_init(void)
         &calibration_config, &adc1_cali_handle));
 
     const adc_oneshot_chan_cfg_t channel_config = {
-        .atten = ADC_ATTEN_DB_12,
+        .atten = ACCELEROMETER_ATTEN,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
 
@@ -54,30 +50,13 @@ void accelerometer_init(void)
     }
 }
 
-float accelerometer_conversion(int raw)
+void accelerometer_read_mv(uint16_t mv[6])
 {
-    int voltage_mv;
-    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(
-        adc1_cali_handle, raw, &voltage_mv));
-
-    const float voltage_v = voltage_mv / 1000.0f;
-    return (voltage_v - ADXL335_ZERO_G_VOLTAGE_V) /
-           ADXL335_SENSITIVITY_V_PER_G;
-}
-
-void accelerometer_read(accelerometer_readings_t *readings)
-{
-    int *values[6] = {
-        &readings->vp,
-        &readings->vn,
-        &readings->d34,
-        &readings->d35,
-        &readings->d32,
-        &readings->d33,
-    };
-
     for (int i = 0; i < 6; i++) {
-        ESP_ERROR_CHECK(adc_oneshot_read(
-            adc1_handle, accelerometer_channels[i], values[i]));
+        int raw = 0;
+        int voltage_mv = 0;
+        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, accelerometer_channels[i], &raw));
+        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, raw, &voltage_mv));
+        mv[i] = (uint16_t)(voltage_mv < 0 ? 0 : voltage_mv);
     }
 }
