@@ -36,6 +36,7 @@ static void sampler_task(void *arg)
 {
     (void)arg;
     uint16_t mv[WIRE_CHANNELS];
+    int64_t last_log_us = esp_timer_get_time();
     while (true) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         // One timestamp per tick for all six channels; a late wake shows up as a >15 ms gap.
@@ -43,8 +44,13 @@ static void sampler_task(void *arg)
         session_t *s = sampler_lock();
         bool running = s->state == SESSION_RUNNING;
         sampler_unlock();
-        if (!running) continue;
         accelerometer_read_mv(mv);
+        if (now_us - last_log_us >= 1000000) {
+            ESP_LOGI(TAG, "accelerometer mV upper[x,y,z]=[%u,%u,%u] forearm[x,y,z]=[%u,%u,%u]",
+                     mv[0], mv[1], mv[2], mv[3], mv[4], mv[5]);
+            last_log_us = now_us;
+        }
+        if (!running) continue;
         s = sampler_lock();
         session_state_t before = s->state;
         session_tick(s, now_us, mv);
